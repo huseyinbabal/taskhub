@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    url: ${JDBC_DATABASE_URL}
+    username: ${JDBC_DATABASE_USERNAME}
+    password: ${JDBC_DATABASE_PASSWORD}
+  jpa:
+    show-sql: false
+
+# No secrets in source — everything above is injected via env vars / K8s secrets.

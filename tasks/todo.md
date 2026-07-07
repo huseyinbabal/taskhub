@@ -3,7 +3,7 @@
 Tracked as GitHub issues on `huseyinbabal/taskhub`. Check off when the slice's
 PR merges. See [`plan.md`](plan.md) and [`SPEC.md`](../SPEC.md).
 
-- [ ] **#1 — Session 1: Project setup** (skeleton, layering, exception handling, SPEC)
+- [x] **#1 — Session 1: Project setup** (skeleton, layering, exception handling, SPEC) — done, commit `54c44a3`
 - [ ] **#2 — Session 2: REST + Security** (CRUD, DTO/validation, pagination, Swagger, JWT, RBAC, CORS) · _needs #1_
 - [ ] **#3 — Session 3: gRPC notifications** (proto, unary + streaming, interceptors) · _needs #2_
 - [ ] **#4 — Session 4: Database** (Flyway, relations, N+1 fixes) · _needs #2_

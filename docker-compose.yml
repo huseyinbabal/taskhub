@@ -1,0 +1,22 @@
+# Local infra for running TaskHub during development.
+# Session 8 adds Prometheus / Grafana / Loki here.
+services:
+  postgres:
+    image: postgres:17
+    container_name: taskhub-postgres
+    environment:
+      POSTGRES_DB: taskhub
+      POSTGRES_USER: taskhub
+      POSTGRES_PASSWORD: taskhub
+    ports:
+      - "5432:5432"
+    volumes:
+      - taskhub-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskhub -d taskhub"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  taskhub-pgdata:

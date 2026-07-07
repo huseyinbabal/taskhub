@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/taskhub
+    username: taskhub
+    password: taskhub
+  jpa:
+    show-sql: true
+
+# Expose full health details locally for convenience.
+management:
+  endpoint:
+    health:
+      show-details: always
