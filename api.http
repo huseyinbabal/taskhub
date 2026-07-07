@@ -1,0 +1,197 @@
+### TaskHub — HTTP request collection
+# IntelliJ HTTP Client / VS Code "REST Client" format.
+#
+# Status of endpoints:
+#   - /actuator/*  → available now (Session 1)
+#   - /api/auth, /api/projects, /api/tasks, /api/tags, /api/users
+#                  → built in Session 2 (REST + Security). Kept here so the
+#                    contract is runnable the moment each slice lands.
+#
+# Flow: run "Register" (or you already have a user) → run "Login" to capture the
+# JWT into {{token}} → every protected request below sends it automatically.
+
+@host = http://localhost:8080
+@contentType = application/json
+
+# Set after running "Login" (auto-captured by the response handler below).
+@token = {{auth_token}}
+
+
+### ── Actuator (Session 1, works now) ────────────────────────────────────────
+
+### Health
+GET {{host}}/actuator/health
+
+### Info
+GET {{host}}/actuator/info
+
+### Prometheus metrics
+GET {{host}}/actuator/prometheus
+
+### OpenAPI JSON (Session 2)
+GET {{host}}/v3/api-docs
+
+
+### ── Auth (Session 2) ─────────────────────────────────────────────────────
+
+### Register a new USER
+POST {{host}}/api/auth/register
+Content-Type: {{contentType}}
+
+{
+  "username": "alice",
+  "email": "alice@example.com",
+  "password": "S3cret!pass"
+}
+
+### Login — captures the JWT into {{auth_token}}
+# @name login
+POST {{host}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "email": "alice@example.com",
+  "password": "S3cret!pass"
+}
+
+> {%
+    // Adjust the field name if the login response wraps the token differently.
+    client.global.set("auth_token", response.body.token ?? response.body.accessToken);
+%}
+
+
+### ── Projects (Session 2) ─────────────────────────────────────────────────
+
+### List projects (paginated)
+GET {{host}}/api/projects?page=0&size=20
+Authorization: Bearer {{token}}
+
+### Create a project
+# @name createProject
+POST {{host}}/api/projects
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "name": "Website Redesign",
+  "description": "Q3 marketing site overhaul"
+}
+
+> {%
+    client.global.set("projectId", response.body.id);
+%}
+
+### Get one project
+GET {{host}}/api/projects/{{projectId}}
+Authorization: Bearer {{token}}
+
+### Update a project
+PUT {{host}}/api/projects/{{projectId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "name": "Website Redesign",
+  "description": "Q3 marketing site overhaul — updated scope"
+}
+
+### Delete a project
+DELETE {{host}}/api/projects/{{projectId}}
+Authorization: Bearer {{token}}
+
+
+### ── Tasks (Session 2) ────────────────────────────────────────────────────
+
+### List tasks in a project (paginated + filters)
+GET {{host}}/api/projects/{{projectId}}/tasks?page=0&size=20&status=TODO
+Authorization: Bearer {{token}}
+
+### Create a task in a project
+# @name createTask
+POST {{host}}/api/projects/{{projectId}}/tasks
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "Draft homepage copy",
+  "description": "First pass at hero + features sections",
+  "status": "TODO",
+  "priority": "HIGH",
+  "dueDate": "2026-08-01",
+  "assigneeId": 1,
+  "tagIds": [1, 2]
+}
+
+> {%
+    client.global.set("taskId", response.body.id);
+%}
+
+### Get one task
+GET {{host}}/api/tasks/{{taskId}}
+Authorization: Bearer {{token}}
+
+### Update a task (e.g. move to IN_PROGRESS)
+PUT {{host}}/api/tasks/{{taskId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "Draft homepage copy",
+  "description": "First pass at hero + features sections",
+  "status": "IN_PROGRESS",
+  "priority": "HIGH",
+  "dueDate": "2026-08-01",
+  "assigneeId": 1,
+  "tagIds": [1, 2]
+}
+
+### Delete a task
+DELETE {{host}}/api/tasks/{{taskId}}
+Authorization: Bearer {{token}}
+
+
+### ── Tags (Session 2) ─────────────────────────────────────────────────────
+
+### List tags
+GET {{host}}/api/tags
+Authorization: Bearer {{token}}
+
+### Create a tag
+POST {{host}}/api/tags
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "name": "urgent",
+  "color": "#e11d48"
+}
+
+
+### ── Users — ADMIN only (Session 2) ───────────────────────────────────────
+
+### List users (requires ADMIN role)
+GET {{host}}/api/users?page=0&size=20
+Authorization: Bearer {{token}}
+
+
+### ── Negative / auth checks (Session 2) ───────────────────────────────────
+
+### No token → expect 401
+GET {{host}}/api/projects
+
+### Malformed token → expect 401
+GET {{host}}/api/projects
+Authorization: Bearer not-a-real-token
+
+### Validation error → expect 400 problem-JSON
+POST {{host}}/api/projects
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "name": ""
+}
+
+### Unknown resource → expect 404 problem-JSON
+GET {{host}}/api/projects/999999
+Authorization: Bearer {{token}}
