@@ -2,6 +2,7 @@ package io.github.huseyinbabal.taskhub.common;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
@@ -18,6 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * errors surface as RFC-7807 problem-JSON, never a stack trace.
  */
 @WebMvcTest
+@AutoConfigureMockMvc(addFilters = false) // error-contract test — not gated by the security filter chain
 @Import(GlobalExceptionHandlerTest.ThrowingController.class)
 class GlobalExceptionHandlerTest {
 
