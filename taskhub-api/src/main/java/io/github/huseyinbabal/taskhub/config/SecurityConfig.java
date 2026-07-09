@@ -48,19 +48,18 @@ public class SecurityConfig {
     }
 
     @Bean
-    JwtAuthenticationFilter jwtAuthenticationFilter(JwtService jwtService) {
-        return new JwtAuthenticationFilter(jwtService);
-    }
-
-    @Bean
     PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                            JwtAuthenticationFilter jwtAuthenticationFilter,
+                                            JwtService jwtService,
                                             CorsConfigurationSource corsConfigurationSource) throws Exception {
+        // Constructed here rather than as a @Bean so Boot does not also auto-register it
+        // in the servlet filter chain (where it would run before SecurityContextHolderFilter
+        // resets the context, dropping the authentication).
+        JwtAuthenticationFilter jwtAuthenticationFilter = new JwtAuthenticationFilter(jwtService);
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
