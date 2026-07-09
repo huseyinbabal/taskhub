@@ -51,6 +51,16 @@ public class GlobalExceptionHandler {
         return problem;
     }
 
+    // Method-security denials (@PreAuthorize) throw Spring Security's AccessDeniedException;
+    // map it to the same 403 contract instead of letting it fall through to a 500.
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ProblemDetail handleSecurityAccessDenied(org.springframework.security.access.AccessDeniedException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN, "You do not have permission to perform this action");
+        problem.setTitle("Access Denied");
+        return problem;
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleValidation(MethodArgumentNotValidException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
