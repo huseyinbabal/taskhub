@@ -6,6 +6,15 @@ spring:
   jpa:
     show-sql: true
 
+# Dev-only, non-production JWT secret (HS256 needs ≥ 32 bytes) and local front-end origins.
+taskhub:
+  jwt:
+    secret: dev-only-insecure-secret-change-me-32bytes!!
+  cors:
+    allowed-origins:
+      - http://localhost:3000
+      - http://localhost:5173
+
 # Expose full health details locally for convenience.
 management:
   endpoint:

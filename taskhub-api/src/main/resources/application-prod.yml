@@ -6,4 +6,11 @@ spring:
   jpa:
     show-sql: false
 
+# JWT secret and CORS origins are environment-supplied — never '*', never in source.
+taskhub:
+  jwt:
+    secret: ${TASKHUB_JWT_SECRET}
+  cors:
+    allowed-origins: ${TASKHUB_CORS_ALLOWED_ORIGINS}
+
 # No secrets in source — everything above is injected via env vars / K8s secrets.
