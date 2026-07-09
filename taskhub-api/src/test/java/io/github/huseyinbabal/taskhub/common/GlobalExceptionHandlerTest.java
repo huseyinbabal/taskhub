@@ -6,8 +6,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -16,11 +14,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * Slice test for the global error contract (SPEC §5, Session 1 acceptance #3):
- * errors surface as RFC-7807 problem-JSON, never a stack trace.
+ * errors surface as RFC-7807 problem-JSON, never a stack trace. Scoped to a
+ * probe controller with the security filter chain off (auth is tested elsewhere).
  */
-@WebMvcTest
-@AutoConfigureMockMvc(addFilters = false) // error-contract test — not gated by the security filter chain
-@Import(GlobalExceptionHandlerTest.ThrowingController.class)
+@WebMvcTest(ProblemDetailProbeController.class)
+@AutoConfigureMockMvc(addFilters = false)
+@Import(GlobalExceptionHandler.class)
 class GlobalExceptionHandlerTest {
 
     @Autowired
@@ -44,19 +43,5 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.title").value("Internal Server Error"))
                 // never leak the raw exception message
                 .andExpect(jsonPath("$.detail").value("An unexpected error occurred"));
-    }
-
-    @RestController
-    static class ThrowingController {
-
-        @GetMapping("/__test/not-found")
-        String notFound() {
-            throw new ResourceNotFoundException("Task 42 not found");
-        }
-
-        @GetMapping("/__test/boom")
-        String boom() {
-            throw new IllegalStateException("internal detail that must not leak");
-        }
     }
 }
