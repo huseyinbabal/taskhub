@@ -81,9 +81,27 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- gRPC client: publishes task events to notification-service (SPEC §Session 3). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-grpc-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.huseyinbabal.taskhub</groupId>
+            <artifactId>taskhub-proto</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Runs a real gRPC server in-process, so the publisher and its interceptors
+             are tested over the wire rather than against a mock. -->
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-inprocess</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
