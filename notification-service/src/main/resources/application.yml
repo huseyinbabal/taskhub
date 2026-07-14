@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: notification-service
+  grpc:
+    server:
+      port: 9090
+
+taskhub:
+  grpc:
+    # Same HMAC secret taskhub-api signs its tokens with: the auth interceptor verifies
+    # the JWT propagated as gRPC metadata. Environment-supplied; never committed.
+    jwt-secret: ${TASKHUB_JWT_SECRET:}
+
+logging:
+  level:
+    io.github.huseyinbabal.taskhub.notification: INFO
