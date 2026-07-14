@@ -7,6 +7,7 @@ import java.util.Set;
 import io.github.huseyinbabal.taskhub.common.AccessDeniedException;
 import io.github.huseyinbabal.taskhub.common.PageResponse;
 import io.github.huseyinbabal.taskhub.common.ResourceNotFoundException;
+import io.github.huseyinbabal.taskhub.notification.TaskChangedEvent;
 import io.github.huseyinbabal.taskhub.project.Project;
 import io.github.huseyinbabal.taskhub.project.ProjectRepository;
 import io.github.huseyinbabal.taskhub.security.CurrentUserProvider;
@@ -18,8 +19,11 @@ import io.github.huseyinbabal.taskhub.user.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -47,6 +51,10 @@ class TaskServiceTest {
     UserRepository userRepository;
     @Mock
     CurrentUserProvider currentUserProvider;
+    @Mock
+    ApplicationEventPublisher events;
+    @Captor
+    ArgumentCaptor<TaskChangedEvent> published;
 
     TaskService taskService;
 
@@ -56,7 +64,7 @@ class TaskServiceTest {
     @BeforeEach
     void setUp() {
         taskService = new TaskService(taskRepository, projectRepository, userRepository,
-                new TaskMapper(), currentUserProvider);
+                new TaskMapper(), currentUserProvider, events);
         alice = userWithId(1L, "alice", Role.USER);
         bob = userWithId(2L, "bob", Role.USER);
     }
@@ -83,11 +91,19 @@ class TaskServiceTest {
         return new TaskRequest("Do it", "desc", TaskStatus.TODO, TaskPriority.HIGH, null, null);
     }
 
+    /** Stands in for the repository: a saved task always comes back with an identity. */
+    private Task persisted(Task task) {
+        if (task.getId() == null) {
+            ReflectionTestUtils.setField(task, "id", 5L);
+        }
+        return task;
+    }
+
     @Test
     void create_inOwnProject_persistsTask() {
         when(currentUserProvider.require()).thenReturn(alice);
         when(projectRepository.findById(10L)).thenReturn(Optional.of(projectOwnedBy(10L, alice)));
-        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> persisted(inv.getArgument(0)));
 
         TaskResponse response = taskService.create(10L, request());
 
@@ -152,7 +168,7 @@ class TaskServiceTest {
     void update_ownTask_appliesChanges() {
         when(currentUserProvider.require()).thenReturn(alice);
         when(taskRepository.findById(5L)).thenReturn(Optional.of(taskIn(5L, projectOwnedBy(10L, alice))));
-        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> persisted(inv.getArgument(0)));
 
         TaskResponse response = taskService.update(5L,
                 new TaskRequest("Renamed", null, TaskStatus.DONE, TaskPriority.MEDIUM, null, null));
@@ -193,5 +209,87 @@ class TaskServiceTest {
         assertThatThrownBy(() -> taskService.listByProject(10L, 0, 20))
                 .isInstanceOf(AccessDeniedException.class);
         verify(taskRepository, never()).findByProjectId(any(), any());
+    }
+
+    // Task mutations announce themselves so notification-service can stream them (SPEC §Session 3).
+    // The event is only shipped once the transaction commits — see TaskEventPublisher.
+
+    @Test
+    void create_publishesACreatedEvent() {
+        when(currentUserProvider.require()).thenReturn(alice);
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(projectOwnedBy(10L, alice)));
+        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> persisted(inv.getArgument(0)));
+
+        taskService.create(10L, request());
+
+        TaskChangedEvent event = capturePublishedEvent();
+        assertThat(event.type()).isEqualTo(TaskChangedEvent.Type.CREATED);
+        assertThat(event.projectId()).isEqualTo(10L);
+        assertThat(event.title()).isEqualTo("Do it");
+        assertThat(event.actor()).isEqualTo("alice");
+    }
+
+    @Test
+    void update_toDone_publishesACompletedEvent() {
+        when(currentUserProvider.require()).thenReturn(alice);
+        when(taskRepository.findById(5L)).thenReturn(Optional.of(taskIn(5L, projectOwnedBy(10L, alice))));
+        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> persisted(inv.getArgument(0)));
+
+        taskService.update(5L, new TaskRequest("Do it", null, TaskStatus.DONE, TaskPriority.LOW, null, null));
+
+        assertThat(capturePublishedEvent().type()).isEqualTo(TaskChangedEvent.Type.COMPLETED);
+    }
+
+    @Test
+    void update_thatChangesTheAssignee_publishesAnAssignedEvent() {
+        when(currentUserProvider.require()).thenReturn(alice);
+        when(taskRepository.findById(5L)).thenReturn(Optional.of(taskIn(5L, projectOwnedBy(10L, alice))));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(bob));
+        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> persisted(inv.getArgument(0)));
+
+        taskService.update(5L, new TaskRequest("Do it", null, TaskStatus.TODO, TaskPriority.LOW, null, 2L));
+
+        TaskChangedEvent event = capturePublishedEvent();
+        assertThat(event.type()).isEqualTo(TaskChangedEvent.Type.ASSIGNED);
+        assertThat(event.assigneeId()).isEqualTo(2L);
+    }
+
+    @Test
+    void update_thatChangesNeitherStatusNorAssignee_publishesAnUpdatedEvent() {
+        when(currentUserProvider.require()).thenReturn(alice);
+        when(taskRepository.findById(5L)).thenReturn(Optional.of(taskIn(5L, projectOwnedBy(10L, alice))));
+        when(taskRepository.save(any(Task.class))).thenAnswer(inv -> persisted(inv.getArgument(0)));
+
+        taskService.update(5L, new TaskRequest("Renamed", null, TaskStatus.TODO, TaskPriority.HIGH, null, null));
+
+        assertThat(capturePublishedEvent().type()).isEqualTo(TaskChangedEvent.Type.UPDATED);
+    }
+
+    @Test
+    void delete_publishesADeletedEvent() {
+        when(currentUserProvider.require()).thenReturn(alice);
+        when(taskRepository.findById(5L)).thenReturn(Optional.of(taskIn(5L, projectOwnedBy(10L, alice))));
+
+        taskService.delete(5L);
+
+        TaskChangedEvent event = capturePublishedEvent();
+        assertThat(event.type()).isEqualTo(TaskChangedEvent.Type.DELETED);
+        assertThat(event.taskId()).isEqualTo(5L);
+    }
+
+    @Test
+    void aRejectedMutation_publishesNothing() {
+        when(currentUserProvider.require()).thenReturn(alice);
+        when(projectRepository.findById(10L)).thenReturn(Optional.of(projectOwnedBy(10L, bob)));
+
+        assertThatThrownBy(() -> taskService.create(10L, request()))
+                .isInstanceOf(AccessDeniedException.class);
+
+        verify(events, never()).publishEvent(any(TaskChangedEvent.class));
+    }
+
+    private TaskChangedEvent capturePublishedEvent() {
+        verify(events).publishEvent(published.capture());
+        return published.getValue();
     }
 }

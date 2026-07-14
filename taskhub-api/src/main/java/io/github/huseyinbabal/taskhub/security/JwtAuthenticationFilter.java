@@ -37,10 +37,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         String header = request.getHeader("Authorization");
-        if (header != null && header.startsWith(BEARER_PREFIX)) {
-            authenticate(header.substring(BEARER_PREFIX.length()), request);
+        try {
+            if (header != null && header.startsWith(BEARER_PREFIX)) {
+                authenticate(header.substring(BEARER_PREFIX.length()), request);
+            }
+            filterChain.doFilter(request, response);
         }
-        filterChain.doFilter(request, response);
+        finally {
+            // Request threads are pooled: a token left behind would be propagated
+            // over gRPC on behalf of the next caller.
+            BearerTokenHolder.clear();
+        }
     }
 
     private void authenticate(String token, HttpServletRequest request) {
@@ -53,9 +60,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             var authentication = new UsernamePasswordAuthenticationToken(username, null, authorities);
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
+            // Only a verified token is held for propagation to notification-service.
+            BearerTokenHolder.set(token);
         } catch (JwtException | IllegalArgumentException ex) {
             // Tampered / expired / malformed token — stay anonymous; the entry point answers 401.
             SecurityContextHolder.clearContext();
+            BearerTokenHolder.clear();
         }
     }
 }

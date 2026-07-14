@@ -2,6 +2,7 @@ package io.github.huseyinbabal.taskhub.security;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -68,5 +69,40 @@ class JwtAuthenticationFilterTest {
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         assertThat(chain.getRequest()).isNotNull(); // still continues; entry point returns 401
+    }
+
+    @Test
+    void validToken_isAvailableForGrpcPropagationDuringTheRequest() throws Exception {
+        String token = jwtService.generateToken("alice", List.of("USER"));
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer " + token);
+        AtomicReference<String> heldDuringRequest = new AtomicReference<>();
+
+        filter.doFilter(request, new MockHttpServletResponse(),
+                (req, res) -> heldDuringRequest.set(BearerTokenHolder.current()));
+
+        assertThat(heldDuringRequest.get()).isEqualTo(token);
+    }
+
+    @Test
+    void token_isClearedAfterTheRequest_soItCannotLeakToTheNextCaller() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer " + jwtService.generateToken("alice", List.of("USER")));
+
+        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+
+        assertThat(BearerTokenHolder.current()).isNull();
+    }
+
+    @Test
+    void invalidToken_isNotHeldForPropagation() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("Authorization", "Bearer not-a-real-jwt");
+        AtomicReference<String> heldDuringRequest = new AtomicReference<>("sentinel");
+
+        filter.doFilter(request, new MockHttpServletResponse(),
+                (req, res) -> heldDuringRequest.set(BearerTokenHolder.current()));
+
+        assertThat(heldDuringRequest.get()).isNull();
     }
 }

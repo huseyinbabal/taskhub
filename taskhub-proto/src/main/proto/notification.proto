@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package taskhub.notification.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "io.github.huseyinbabal.taskhub.notification.grpc";
+option java_multiple_files = true;
+option java_outer_classname = "NotificationProto";
+
+// Task-event contract shared by taskhub-api (client) and notification-service
+// (server) — SPEC §Session 3.
+//
+// Backwards compatibility is a project boundary: fields are only ever added with
+// new tag numbers, never renumbered or reused, and enum values are only appended.
+service NotificationService {
+
+  // Fire-and-acknowledge: taskhub-api reports a task mutation. The server records
+  // the event and fans it out to every matching subscriber.
+  rpc NotifyTaskEvent(TaskEvent) returns (NotifyAck);
+
+  // Server-streaming: a subscriber receives task events in real time, for as long
+  // as it keeps the stream open.
+  rpc SubscribeTaskEvents(SubscribeRequest) returns (stream TaskEvent);
+}
+
+enum TaskEventType {
+  TASK_EVENT_TYPE_UNSPECIFIED = 0;
+  TASK_CREATED = 1;
+  TASK_UPDATED = 2;
+  TASK_ASSIGNED = 3;
+  TASK_COMPLETED = 4;
+  TASK_DELETED = 5;
+}
+
+message TaskEvent {
+  // Client-generated identity of this event; lets subscribers de-duplicate.
+  string event_id = 1;
+  TaskEventType type = 2;
+  int64 task_id = 3;
+  int64 project_id = 4;
+  string title = 5;
+  // Task status at the time of the event (TaskStatus name in taskhub-api).
+  string status = 6;
+  // 0 when the task is unassigned.
+  int64 assignee_id = 7;
+  // Username of the caller that made the mutation.
+  string actor = 8;
+  google.protobuf.Timestamp occurred_at = 9;
+}
+
+message NotifyAck {
+  // Echoes TaskEvent.event_id so the caller can correlate the acknowledgement.
+  string event_id = 1;
+  bool accepted = 2;
+  // Number of live subscribers the event was delivered to.
+  int32 delivered_to = 3;
+}
+
+message SubscribeRequest {
+  // Only receive events for this project; 0 subscribes to every project the
+  // subscriber is allowed to see.
+  int64 project_id = 1;
+}

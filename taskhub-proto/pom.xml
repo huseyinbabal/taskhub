@@ -15,10 +15,43 @@
     <name>taskhub-proto</name>
     <description>Shared gRPC contract (protobuf) consumed by taskhub-api and notification-service</description>
 
-    <!--
-      Session 3 (gRPC) adds the protobuf-maven-plugin and the notification.proto
-      contract here, generating stubs for both services. For Session 1 this is an
-      empty, buildable module that establishes the reactor slot.
-    -->
+    <dependencies>
+        <!--
+          Compile-scoped so the generated stubs (protobuf messages + gRPC service base
+          classes) are usable by every consumer of this module.
+        -->
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-protobuf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.grpc</groupId>
+            <artifactId>grpc-stub</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!--
+              Generates message + gRPC stubs from src/main/proto. The plugin version,
+              protoc and the protoc-gen-grpc-java plugin are managed by
+              spring-boot-starter-parent.
+            -->
+            <plugin>
+                <groupId>io.github.ascopes</groupId>
+                <artifactId>protobuf-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>

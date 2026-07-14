@@ -1,0 +1,4 @@
+# The gRPC HMAC secret is injected from the environment — never in source.
+taskhub:
+  grpc:
+    jwt-secret: ${TASKHUB_JWT_SECRET}

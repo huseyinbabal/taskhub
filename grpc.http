@@ -1,0 +1,144 @@
+### TaskHub — gRPC request collection (Session 3)
+# IntelliJ HTTP Client "GRPC" requests. Method discovery uses server reflection,
+# which is enabled in notification-service's dev profile only.
+#
+# Prerequisites:
+#   1. docker compose up -d postgres
+#   2. ./mvnw -pl notification-service spring-boot:run   → gRPC on :9090
+#   3. ./mvnw -pl taskhub-api spring-boot:run            → REST on :8080
+#   4. Run "Login" in api.http first — it captures the JWT into {{auth_token}},
+#      which is shared with this file. Every call below propagates that same token
+#      as `authorization` metadata, exactly as taskhub-api does.
+#
+# The contract lives in taskhub-proto/src/main/proto/notification.proto.
+
+@grpcHost = localhost:9090
+@token = {{auth_token}}
+
+# Set after running "Create a project" in api.http; 0 subscribes to every project.
+@project = {{projectId}}
+
+
+### ── Discovery ────────────────────────────────────────────────────────────
+
+### List the services this server exposes (via reflection)
+GRPC {{grpcHost}}/
+
+### Describe the notification service
+GRPC {{grpcHost}}/taskhub.notification.v1.NotificationService/
+
+
+### ── SubscribeTaskEvents — server-streaming ───────────────────────────────
+#
+# Start this FIRST and leave it running: it stays open and prints events as they
+# arrive. Then create/update/delete a task in api.http and watch them land here.
+# `project_id: 0` means "every project".
+
+### Subscribe to one project's events
+GRPC {{grpcHost}}/taskhub.notification.v1.NotificationService/SubscribeTaskEvents
+Authorization: Bearer {{token}}
+X-Correlation-Id: my-subscriber
+
+{
+  "project_id": {{project}}
+}
+
+### Subscribe to every project's events
+GRPC {{grpcHost}}/taskhub.notification.v1.NotificationService/SubscribeTaskEvents
+Authorization: Bearer {{token}}
+
+{
+  "project_id": 0
+}
+
+
+### ── NotifyTaskEvent — unary ──────────────────────────────────────────────
+#
+# taskhub-api sends this on every task mutation. Calling it by hand is a quick way
+# to prove fan-out: `delivered_to` in the ack is how many open subscriptions got it.
+
+### Publish a task event by hand
+GRPC {{grpcHost}}/taskhub.notification.v1.NotificationService/NotifyTaskEvent
+Authorization: Bearer {{token}}
+X-Correlation-Id: my-trace
+
+{
+  "event_id": "manual-1",
+  "type": "TASK_CREATED",
+  "task_id": 1,
+  "project_id": {{project}},
+  "title": "Draft homepage copy",
+  "status": "TODO",
+  "assignee_id": 1,
+  "actor": "alice"
+}
+
+
+### ── Negative / auth checks ───────────────────────────────────────────────
+
+### No token → expect UNAUTHENTICATED
+GRPC {{grpcHost}}/taskhub.notification.v1.NotificationService/NotifyTaskEvent
+
+{
+  "event_id": "forged",
+  "type": "TASK_CREATED",
+  "task_id": 1,
+  "project_id": 1
+}
+
+### Forged token → expect UNAUTHENTICATED
+GRPC {{grpcHost}}/taskhub.notification.v1.NotificationService/NotifyTaskEvent
+Authorization: Bearer not-a-real-jwt
+
+{
+  "event_id": "forged",
+  "type": "TASK_CREATED",
+  "task_id": 1,
+  "project_id": 1
+}
+
+### Health check — exempt from auth, so probes keep working without a token
+GRPC {{grpcHost}}/grpc.health.v1.Health/Check
+
+{}
+
+
+### ── The same calls with grpcurl ──────────────────────────────────────────
+#
+# Grab a token (jq required):
+#
+#   TOKEN=$(curl -s -X POST localhost:8080/api/auth/login \
+#     -H 'Content-Type: application/json' \
+#     -d '{"username":"alice","password":"S3cret!pass"}' | jq -r .token)
+#
+# Discover the contract (reflection is on in dev):
+#
+#   grpcurl -plaintext localhost:9090 list
+#   grpcurl -plaintext localhost:9090 describe taskhub.notification.v1.NotificationService
+#
+# Subscribe — leave it running, then mutate a task over REST and watch events arrive:
+#
+#   grpcurl -plaintext -H "authorization: Bearer $TOKEN" -H 'x-correlation-id: my-subscriber' \
+#     -d '{"project_id": 1}' \
+#     localhost:9090 taskhub.notification.v1.NotificationService/SubscribeTaskEvents
+#
+#   curl -X POST localhost:8080/api/projects/1/tasks \
+#     -H 'Content-Type: application/json' -H "Authorization: Bearer $TOKEN" \
+#     -H 'X-Correlation-Id: my-trace' \
+#     -d '{"title":"Observe me","status":"TODO","priority":"HIGH"}'
+#
+# Publish a unary event by hand (the ack's delivered_to = open subscriptions reached):
+#
+#   grpcurl -plaintext -H "authorization: Bearer $TOKEN" \
+#     -d '{"event_id":"manual-1","type":"TASK_CREATED","task_id":1,"project_id":1,
+#          "title":"Draft homepage copy","status":"TODO","actor":"alice"}' \
+#     localhost:9090 taskhub.notification.v1.NotificationService/NotifyTaskEvent
+#
+# Unauthenticated → rejected by the auth interceptor:
+#
+#   grpcurl -plaintext -d '{"event_id":"forged"}' \
+#     localhost:9090 taskhub.notification.v1.NotificationService/NotifyTaskEvent
+#   # ERROR: Code: Unauthenticated  Message: A valid bearer token is required
+#
+# Whatever you pass as x-correlation-id shows up in BOTH services' logs for that
+# call — that is the point of the correlation-id interceptor.

@@ -3,6 +3,13 @@ spring:
     name: taskhub-api
   profiles:
     default: dev
+  grpc:
+    client:
+      channel:
+        # notification-service (SPEC §Session 3). Task events are best-effort: if this
+        # target is unreachable the mutation still succeeds and the failure is logged.
+        notifications:
+          target: ${TASKHUB_NOTIFICATIONS_TARGET:static://localhost:9090}
   jpa:
     open-in-view: false
     hibernate:
