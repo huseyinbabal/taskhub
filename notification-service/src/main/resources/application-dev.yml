@@ -1,0 +1,9 @@
+# Dev-only, non-production secret — the same value taskhub-api uses in its dev profile,
+# so a locally issued token is accepted over gRPC (HS256 needs ≥ 32 bytes).
+taskhub:
+  grpc:
+    jwt-secret: dev-only-insecure-secret-change-me-32bytes!!
+
+logging:
+  level:
+    io.github.huseyinbabal.taskhub.notification: DEBUG

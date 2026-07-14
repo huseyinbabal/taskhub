@@ -4,6 +4,7 @@ import io.github.huseyinbabal.taskhub.notification.grpc.NotificationServiceGrpc;
 import io.github.huseyinbabal.taskhub.notification.grpc.NotifyAck;
 import io.github.huseyinbabal.taskhub.notification.grpc.SubscribeRequest;
 import io.github.huseyinbabal.taskhub.notification.grpc.TaskEvent;
+import io.github.huseyinbabal.taskhub.notification.grpc.interceptor.GrpcMetadata;
 import io.grpc.stub.StreamObserver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,8 +37,8 @@ public class NotificationGrpcService extends NotificationServiceGrpc.Notificatio
     public void notifyTaskEvent(TaskEvent request, StreamObserver<NotifyAck> responseObserver) {
         this.store.record(request);
         int delivered = this.broker.publish(request);
-        log.info("Task event {} ({}) for task {} delivered to {} subscriber(s)",
-                request.getEventId(), request.getType(), request.getTaskId(), delivered);
+        log.info("Task event {} ({}) for task {} from {} delivered to {} subscriber(s)",
+                request.getEventId(), request.getType(), request.getTaskId(), GrpcMetadata.caller(), delivered);
 
         responseObserver.onNext(NotifyAck.newBuilder()
                 .setEventId(request.getEventId())

@@ -11,6 +11,7 @@ import io.github.huseyinbabal.taskhub.notification.grpc.NotifyAck;
 import io.github.huseyinbabal.taskhub.notification.grpc.SubscribeRequest;
 import io.github.huseyinbabal.taskhub.notification.grpc.TaskEvent;
 import io.github.huseyinbabal.taskhub.notification.grpc.TaskEventType;
+import io.github.huseyinbabal.taskhub.notification.support.GrpcTestClients;
 import io.grpc.stub.ClientCallStreamObserver;
 import io.grpc.stub.ClientResponseObserver;
 import org.awaitility.Awaitility;
@@ -38,10 +39,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NotificationGrpcServiceTest {
 
     @Autowired
-    private NotificationServiceGrpc.NotificationServiceBlockingStub blockingStub;
+    private NotificationServiceGrpc.NotificationServiceBlockingStub rawBlockingStub;
 
     @Autowired
-    private NotificationServiceGrpc.NotificationServiceStub asyncStub;
+    private NotificationServiceGrpc.NotificationServiceStub rawAsyncStub;
 
     @Autowired
     private TaskEventBroker broker;
@@ -51,8 +52,15 @@ class NotificationGrpcServiceTest {
 
     private final List<Subscription> subscriptions = new ArrayList<>();
 
+    /** Both RPCs are authenticated (see {@link GrpcInterceptorTest}); these stubs carry a valid token. */
+    private NotificationServiceGrpc.NotificationServiceBlockingStub blockingStub;
+
+    private NotificationServiceGrpc.NotificationServiceStub asyncStub;
+
     @BeforeEach
-    void awaitNoLeftoverSubscribers() {
+    void authenticateAndAwaitNoLeftoverSubscribers() {
+        this.blockingStub = GrpcTestClients.authenticated(this.rawBlockingStub, "alice");
+        this.asyncStub = GrpcTestClients.authenticated(this.rawAsyncStub, "alice");
         awaitSubscriberCount(0);
     }
 
