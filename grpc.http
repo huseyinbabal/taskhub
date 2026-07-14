@@ -11,8 +11,18 @@
 #      as `authorization` metadata, exactly as taskhub-api does.
 #
 # The contract lives in taskhub-proto/src/main/proto/notification.proto.
+#
+# Note the quotes around task_id / project_id / assignee_id below: proto3's JSON mapping
+# renders 64-bit integers as strings, because a JSON number cannot hold int64 without
+# losing precision. That is also why the streamed events come back as "task_id": "16".
 
-@grpcHost = localhost:9090
+# The `grpc://` scheme is not optional here: it is what makes the call plaintext (h2c).
+# Connect with `grpcs://` — or let the IDE decide — and the TLS handshake hits a server
+# that only speaks plaintext, which fails with "HTTP/2 client preface string missing or
+# corrupt" on the server side (the hex dump in that log starts with 1603 01, a TLS
+# ClientHello). The server survives it; the call does not. TLS arrives with the
+# deployment slices; until then every environment here is plaintext.
+@grpcHost = grpc://localhost:9090
 @token = {{auth_token}}
 
 # Set after running "Create a project" in api.http; 0 subscribes to every project.
@@ -40,7 +50,7 @@ Authorization: Bearer {{token}}
 X-Correlation-Id: my-subscriber
 
 {
-  "project_id": {{project}}
+  "project_id": "{{project}}"
 }
 
 ### Subscribe to every project's events
@@ -48,7 +58,7 @@ GRPC {{grpcHost}}/taskhub.notification.v1.NotificationService/SubscribeTaskEvent
 Authorization: Bearer {{token}}
 
 {
-  "project_id": 0
+  "project_id": "0"
 }
 
 
@@ -65,11 +75,11 @@ X-Correlation-Id: my-trace
 {
   "event_id": "manual-1",
   "type": "TASK_CREATED",
-  "task_id": 1,
-  "project_id": {{project}},
+  "task_id": "1",
+  "project_id": "{{project}}",
   "title": "Draft homepage copy",
   "status": "TODO",
-  "assignee_id": 1,
+  "assignee_id": "1",
   "actor": "alice"
 }
 
@@ -82,8 +92,8 @@ GRPC {{grpcHost}}/taskhub.notification.v1.NotificationService/NotifyTaskEvent
 {
   "event_id": "forged",
   "type": "TASK_CREATED",
-  "task_id": 1,
-  "project_id": 1
+  "task_id": "1",
+  "project_id": "1"
 }
 
 ### Forged token → expect UNAUTHENTICATED
@@ -93,8 +103,8 @@ Authorization: Bearer not-a-real-jwt
 {
   "event_id": "forged",
   "type": "TASK_CREATED",
-  "task_id": 1,
-  "project_id": 1
+  "task_id": "1",
+  "project_id": "1"
 }
 
 ### Health check — exempt from auth, so probes keep working without a token
@@ -104,6 +114,9 @@ GRPC {{grpcHost}}/grpc.health.v1.Health/Check
 
 
 ### ── The same calls with grpcurl ──────────────────────────────────────────
+#
+# Every line below is a comment — grpcurl speaks plaintext with -plaintext, so there is
+# no scheme to get wrong. Copy them into a terminal.
 #
 # Grab a token (jq required):
 #
@@ -119,7 +132,7 @@ GRPC {{grpcHost}}/grpc.health.v1.Health/Check
 # Subscribe — leave it running, then mutate a task over REST and watch events arrive:
 #
 #   grpcurl -plaintext -H "authorization: Bearer $TOKEN" -H 'x-correlation-id: my-subscriber' \
-#     -d '{"project_id": 1}' \
+#     -d '{"project_id": "1"}' \
 #     localhost:9090 taskhub.notification.v1.NotificationService/SubscribeTaskEvents
 #
 #   curl -X POST localhost:8080/api/projects/1/tasks \
@@ -127,10 +140,11 @@ GRPC {{grpcHost}}/grpc.health.v1.Health/Check
 #     -H 'X-Correlation-Id: my-trace' \
 #     -d '{"title":"Observe me","status":"TODO","priority":"HIGH"}'
 #
-# Publish a unary event by hand (the ack's delivered_to = open subscriptions reached):
+# Publish a unary event by hand (the ack's delivered_to = open subscriptions reached,
+# and is omitted from the JSON when it is zero):
 #
 #   grpcurl -plaintext -H "authorization: Bearer $TOKEN" \
-#     -d '{"event_id":"manual-1","type":"TASK_CREATED","task_id":1,"project_id":1,
+#     -d '{"event_id":"manual-1","type":"TASK_CREATED","task_id":"1","project_id":"1",
 #          "title":"Draft homepage copy","status":"TODO","actor":"alice"}' \
 #     localhost:9090 taskhub.notification.v1.NotificationService/NotifyTaskEvent
 #
@@ -139,6 +153,11 @@ GRPC {{grpcHost}}/grpc.health.v1.Health/Check
 #   grpcurl -plaintext -d '{"event_id":"forged"}' \
 #     localhost:9090 taskhub.notification.v1.NotificationService/NotifyTaskEvent
 #   # ERROR: Code: Unauthenticated  Message: A valid bearer token is required
+#
+# Health is exempt from auth, so probes keep working without a token:
+#
+#   grpcurl -plaintext localhost:9090 grpc.health.v1.Health/Check
+#   # {"status":"SERVING"}
 #
 # Whatever you pass as x-correlation-id shows up in BOTH services' logs for that
 # call — that is the point of the correlation-id interceptor.
