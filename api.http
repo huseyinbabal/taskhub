@@ -207,6 +207,50 @@ Authorization: Bearer {{token}}
 # X-Correlation-Id is optional: supplied here it is echoed back on the response and
 # propagated as gRPC metadata, so one action is traceable across both services' logs.
 # Omit it and taskhub-api mints one for you.
+#
+# ── Watching the events with grpcurl ─────────────────────────────────────────
+#
+# Prefer the terminal to the IDE? These are the same calls. Needs `grpcurl` and `jq`,
+# notification-service running on :9090, and reflection (on by default in dev).
+#
+#   TOKEN=$(curl -s -X POST localhost:8080/api/auth/login \
+#     -H 'Content-Type: application/json' \
+#     -d '{"username":"alice","password":"S3cret!pass"}' | jq -r .token)
+#
+# What does this server expose?
+#
+#   grpcurl -plaintext localhost:9090 list
+#   grpcurl -plaintext localhost:9090 describe taskhub.notification.v1.NotificationService
+#
+# Subscribe and LEAVE IT RUNNING in its own terminal — `project_id: 0` = every project:
+#
+#   grpcurl -plaintext -H "authorization: Bearer $TOKEN" -d '{"project_id": 0}' \
+#     localhost:9090 taskhub.notification.v1.NotificationService/SubscribeTaskEvents
+#
+# Now run the requests below. Each one prints an event on that stream, e.g.:
+#
+#   {"event_id":"a89335ae…","type":"TASK_CREATED","task_id":"16","project_id":"4",
+#    "title":"Observe me over gRPC","status":"TODO","actor":"alice"}
+#
+# Publish an event by hand, without touching the REST API (`accepted: true` comes back;
+# `delivered_to` counts the open subscriptions it reached, and is omitted when zero):
+#
+#   grpcurl -plaintext -H "authorization: Bearer $TOKEN" -H 'x-correlation-id: my-trace' \
+#     -d '{"event_id":"manual-1","type":"TASK_CREATED","task_id":1,"project_id":1,
+#          "title":"Draft homepage copy","status":"TODO","actor":"alice"}' \
+#     localhost:9090 taskhub.notification.v1.NotificationService/NotifyTaskEvent
+#
+# No token, or a forged one → the auth interceptor rejects it before the handler runs:
+#
+#   grpcurl -plaintext -d '{"event_id":"forged"}' \
+#     localhost:9090 taskhub.notification.v1.NotificationService/NotifyTaskEvent
+#   # ERROR: Code: Unauthenticated  Message: A valid bearer token is required
+#
+# Health is exempt, so probes keep working without a token → {"status":"SERVING"}:
+#
+#   grpcurl -plaintext localhost:9090 grpc.health.v1.Health/Check
+#
+# `grpc.http` has these as runnable IDE requests.
 
 ### Create a task → emits TASK_CREATED
 POST {{host}}/api/projects/{{projectId}}/tasks
