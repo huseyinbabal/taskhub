@@ -50,7 +50,7 @@ POST {{host}}/api/auth/login
 Content-Type: {{contentType}}
 
 {
-  "email": "alice@example.com",
+  "username": "alice",
   "password": "S3cret!pass"
 }
 
@@ -195,3 +195,63 @@ Authorization: Bearer {{token}}
 ### Unknown resource → expect 404 problem-JSON
 GET {{host}}/api/projects/999999
 Authorization: Bearer {{token}}
+
+
+### ── Task events over gRPC (Session 3) ────────────────────────────────────
+#
+# Every task mutation above (create / update / delete) is published to
+# notification-service over gRPC once the transaction commits. The gRPC calls
+# themselves live in `grpc.http` — subscribe there, then run the requests below and
+# watch the events arrive.
+#
+# X-Correlation-Id is optional: supplied here it is echoed back on the response and
+# propagated as gRPC metadata, so one action is traceable across both services' logs.
+# Omit it and taskhub-api mints one for you.
+
+### Create a task → emits TASK_CREATED
+POST {{host}}/api/projects/{{projectId}}/tasks
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Correlation-Id: my-trace
+
+{
+  "title": "Observe me over gRPC",
+  "description": "Watch this land on the SubscribeTaskEvents stream",
+  "status": "TODO",
+  "priority": "HIGH"
+}
+
+> {%
+    client.global.set("eventTaskId", response.body.id);
+%}
+
+### Reassign it → emits TASK_ASSIGNED
+PUT {{host}}/api/tasks/{{eventTaskId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Correlation-Id: my-trace
+
+{
+  "title": "Observe me over gRPC",
+  "status": "IN_PROGRESS",
+  "priority": "HIGH",
+  "assigneeId": 1
+}
+
+### Finish it → emits TASK_COMPLETED (completion wins over reassignment)
+PUT {{host}}/api/tasks/{{eventTaskId}}
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+X-Correlation-Id: my-trace
+
+{
+  "title": "Observe me over gRPC",
+  "status": "DONE",
+  "priority": "HIGH",
+  "assigneeId": 1
+}
+
+### Delete it → emits TASK_DELETED
+DELETE {{host}}/api/tasks/{{eventTaskId}}
+Authorization: Bearer {{token}}
+X-Correlation-Id: my-trace
