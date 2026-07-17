@@ -70,6 +70,15 @@ The automated equivalents (entity hit, invalidation, collection cache, query cac
 container-free against an embedded Hazelcast member in
 `HazelcastL2CacheTest` — `./mvnw -pl taskhub-api test`.
 
+### Management Center
+
+`docker compose up -d` also starts Hazelcast Management Center at
+**http://localhost:8090** (dev convenience; mapped off 8080 so it does not clash with
+`taskhub-api`). It auto-connects to the `taskhub` cluster. Once the app has served a few
+requests, the cache regions appear under **Storage → Maps** — one map per cached entity/
+collection (e.g. `io.github.huseyinbabal.taskhub.task.Task`), with live entry counts and
+hit ratios.
+
 ## Known follow-ups
 
 - **`findByUsername` is not cached.** Resolving the authenticated caller

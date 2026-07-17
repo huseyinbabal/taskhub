@@ -19,6 +19,28 @@ services:
       timeout: 3s
       retries: 10
 
+  # Hazelcast Management Center — web UI to inspect the cluster, cache maps (the L2 cache
+  # regions) and their entry counts. Dev-only convenience; not part of the runtime path.
+  # Its UI listens on 8080 in-container, mapped to 8090 on the host so it does not clash
+  # with taskhub-api. Auto-connects to the cluster above.
+  hazelcast-management-center:
+    image: hazelcast/management-center:5.5.0
+    container_name: taskhub-hazelcast-mc
+    environment:
+      MC_DEFAULT_CLUSTER: taskhub
+      MC_DEFAULT_CLUSTER_MEMBERS: hazelcast:5701
+    ports:
+      - "8090:8080"
+    depends_on:
+      hazelcast:
+        condition: service_healthy
+    healthcheck:
+      # MC serves its SPA (HTTP 200) once the web server is up; -f fails on non-2xx.
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/ > /dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   postgres:
     image: postgres:17
     container_name: taskhub-postgres
