@@ -18,6 +18,8 @@
     <properties>
         <jjwt.version>0.12.6</jjwt.version>
         <springdoc.version>2.8.9</springdoc.version>
+        <!-- Not BOM-managed; targets Hibernate 6.5 — Hibernate 7.4 compat is gated by T0. -->
+        <hazelcast-hibernate.version>5.2.0</hazelcast-hibernate.version>
     </properties>
 
     <dependencies>
@@ -28,6 +30,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+
+        <!-- Hibernate second-level cache backed by Hazelcast (spec/hibernate-l2-cache-hazelcast.md).
+             hazelcast is BOM-managed (5.5.0); the region factory is pinned explicitly. -->
+        <dependency>
+            <groupId>com.hazelcast</groupId>
+            <artifactId>hazelcast</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.hazelcast</groupId>
+            <artifactId>hazelcast-hibernate53</artifactId>
+            <version>${hazelcast-hibernate.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -122,6 +136,12 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- In-memory DB for the L2-cache compatibility spike, isolated from Postgres/Flyway. -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

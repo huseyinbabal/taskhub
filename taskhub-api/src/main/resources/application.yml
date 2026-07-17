@@ -15,6 +15,20 @@ spring:
     hibernate:
       # Flyway owns the schema (SPEC boundary); Hibernate only validates it.
       ddl-auto: validate
+    properties:
+      # Hibernate second-level cache backed by Hazelcast (spec/hibernate-l2-cache-hazelcast.md).
+      # taskhub-api connects to the Hazelcast container as a native client. Only entities
+      # explicitly annotated @Cacheable are cached (ENABLE_SELECTIVE); the query cache is on
+      # but opt-in per query. fallback=true means an unreachable cluster degrades to no-cache
+      # rather than failing — the cache is an optimisation, never a correctness dependency.
+      hibernate.cache.use_second_level_cache: true
+      hibernate.cache.use_query_cache: true
+      hibernate.cache.region.factory_class: com.hazelcast.hibernate.HazelcastCacheRegionFactory
+      hibernate.cache.hazelcast.use_native_client: true
+      hibernate.cache.hazelcast.native_client_address: ${TASKHUB_HAZELCAST_ADDRESS:127.0.0.1:5701}
+      hibernate.cache.hazelcast.native_client_cluster_name: ${TASKHUB_HAZELCAST_CLUSTER:taskhub}
+      hibernate.cache.hazelcast.fallback: true
+      jakarta.persistence.sharedCache.mode: ENABLE_SELECTIVE
   flyway:
     enabled: true
     locations: classpath:db/migration
