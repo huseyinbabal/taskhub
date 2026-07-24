@@ -1,0 +1,166 @@
+# CI — the merge gate (SPEC §Session 6).
+# Runs the full reactor build with the JaCoCo coverage gate, then builds both
+# images and proves each one actually starts and reports healthy. Nothing is
+# pushed to a registry here; publishing lives in build.yml.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A newer push to the same branch supersedes the run in flight.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Test & coverage gate
+    runs-on: ubuntu-latest
+    env:
+      # Read at step level below; absent secrets arrive as an empty string.
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Sonar attributes issues via git blame, which needs the full history.
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # `verify` runs every test and the JaCoCo line gate (>= 80%, see pom.xml).
+      # A failing test or a coverage drop fails the job, and the job blocks merge.
+      - name: mvn verify
+        run: ./mvnw -B -ntp verify
+
+      - name: Upload coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: '*/target/site/jacoco/'
+          if-no-files-found: warn
+
+      # Skipped until a SONAR_TOKEN repository secret exists — see docs/ci-cd.md.
+      # qualitygate.wait makes a red Sonar gate fail this job.
+      - name: SonarQube Cloud scan
+        if: ${{ env.SONAR_TOKEN != '' }}
+        run: >
+          ./mvnw -B -ntp org.sonarsource.scanner.maven:sonar-maven-plugin:5.7.0.6970:sonar
+          -Dsonar.host.url=https://sonarcloud.io
+          -Dsonar.projectKey=huseyinbabal_taskhub
+          -Dsonar.organization=huseyinbabal
+          -Dsonar.qualitygate.wait=true
+
+  image:
+    name: Image (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [taskhub-api, notification-service]
+
+    # Backing infrastructure for the taskhub-api smoke test. The
+    # notification-service leg simply ignores both.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: taskhub
+          POSTGRES_USER: taskhub
+          POSTGRES_PASSWORD: taskhub
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U taskhub -d taskhub"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+      hazelcast:
+        image: hazelcast/hazelcast:5.5.0
+        env:
+          HZ_CLUSTERNAME: taskhub
+        ports: ['5701:5701']
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.module }}/Dockerfile
+          push: false
+          load: true
+          tags: ${{ matrix.module }}:ci
+          cache-from: type=gha,scope=${{ matrix.module }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.module }}
+
+      # Acceptance criterion: runs as non-root, and the final layer carries no
+      # build tooling (that all stayed behind in the JDK stage).
+      - name: Assert non-root and no build tooling
+        run: |
+          uid="$(docker run --rm --entrypoint id "${{ matrix.module }}:ci" -u)"
+          echo "runtime uid: $uid"
+          if [ "$uid" = "0" ]; then
+            echo "::error::image runs as root"
+            exit 1
+          fi
+          docker run --rm --entrypoint sh "${{ matrix.module }}:ci" -c '
+            if command -v javac || command -v mvn; then
+              echo "::error::build tooling present in the runtime layer"
+              exit 1
+            fi'
+
+      - name: Start container (taskhub-api)
+        if: matrix.module == 'taskhub-api'
+        run: |
+          docker run -d --name smoke --network host \
+            -e SPRING_PROFILES_ACTIVE=prod \
+            -e JDBC_DATABASE_URL=jdbc:postgresql://localhost:5432/taskhub \
+            -e JDBC_DATABASE_USERNAME=taskhub \
+            -e JDBC_DATABASE_PASSWORD=taskhub \
+            -e TASKHUB_JWT_SECRET=ci-only-insecure-secret-not-a-real-one-32b \
+            -e TASKHUB_CORS_ALLOWED_ORIGINS=http://localhost:3000 \
+            -e TASKHUB_HAZELCAST_ADDRESS=127.0.0.1:5701 \
+            "${{ matrix.module }}:ci"
+
+      - name: Start container (notification-service)
+        if: matrix.module == 'notification-service'
+        run: |
+          docker run -d --name smoke --network host \
+            -e SPRING_PROFILES_ACTIVE=prod \
+            -e TASKHUB_JWT_SECRET=ci-only-insecure-secret-not-a-real-one-32b \
+            "${{ matrix.module }}:ci"
+
+      # The HEALTHCHECK in each Dockerfile is the assertion — this just waits for
+      # Docker's own verdict on it.
+      - name: Wait for healthcheck
+        run: |
+          for i in $(seq 1 40); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' smoke)"
+            echo "attempt ${i}: ${status}"
+            if [ "$status" = "healthy" ]; then
+              exit 0
+            fi
+            if [ "$status" = "unhealthy" ]; then
+              break
+            fi
+            sleep 5
+          done
+          echo "::error::${{ matrix.module }} never became healthy"
+          exit 1
+
+      - name: Container logs
+        if: ${{ !cancelled() }}
+        run: docker logs smoke
