@@ -1,0 +1,22 @@
+# Keep the build context to what the Maven build actually needs: mvnw, .mvn,
+# the poms and src/. Everything below is either rebuilt inside the image or
+# irrelevant to it — and target/ alone is ~130 MB of jars.
+**/target/
+.git/
+.github/
+.idea/
+*.iml
+
+docs/
+spec/
+tasks/
+*.md
+api.http
+grpc.http
+docker-compose.yml
+.dockerignore
+**/Dockerfile
+
+.DS_Store
+*.log
+.env
