@@ -3,11 +3,12 @@
 Tracked as GitHub issues on `huseyinbabal/taskhub`. Check off when the slice's
 PR merges. See [`plan.md`](plan.md) and [`SPEC.md`](../SPEC.md).
 
-- [x] **#1 — Session 1: Project setup** (skeleton, layering, exception handling, SPEC) — done, commit `54c44a3`
-- [x] **#2 — Session 2: REST + Security** (CRUD, DTO/validation, pagination, Swagger, JWT, RBAC, CORS) — done, PR #10
-- [x] **#3 — Session 3: gRPC notifications** (proto, unary + streaming, interceptors) — done, branch `session-3-grpc`
-- [ ] **#4 — Session 4: Database** (Flyway, relations, N+1 fixes) · _needs #2_
-- [ ] **#5 — Session 5: Testing** (unit/slice/Testcontainers/E2E + coverage gate) · _needs #2,#3,#4_
+- [x] **#1 — Session 1: Project setup** (skeleton, layering, exception handling, SPEC) — done, commit `0ecac95`
+- [x] **#2 — Session 2: REST + Security** (CRUD, DTO/validation, pagination, Swagger, JWT, RBAC, CORS) — done, PR #9
+- [x] **#3 — Session 3: gRPC notifications** (proto, unary + streaming, interceptors) — done, PR #11
+- [x] **#4 — Session 4: Database** (Flyway, relations, N+1 fixes) — done, schema landed with Session 2 in commit `a9ceb0c` (`ddl-auto: validate`)
+- [x] **#5 — Session 5: Testing** (unit/slice/Testcontainers/E2E + coverage gate) — done, tests across all three modules; JaCoCo line gate ≥ 80% enforced in `./mvnw verify`
+- [x] **Hibernate L2 cache with Hazelcast** (client/server, native region factory, query cache) — done, PR #12 · _not a numbered session; see [`../spec/hibernate-l2-cache-hazelcast.md`](../spec/hibernate-l2-cache-hazelcast.md)_
 - [ ] **#6 — Session 6: Docker & CI/CD** (multi-stage image, GH Actions) · _needs #5_
 - [ ] **#7 — Session 7: K8s & GitOps** (kind, Flux, overlays, rollback) · _needs #6_
 - [ ] **#8 — Session 8: Observability** (logs/metrics/traces/alerts, /ship) · _needs #7_

@@ -15,6 +15,14 @@
     <name>taskhub-proto</name>
     <description>Shared gRPC contract (protobuf) consumed by taskhub-api and notification-service</description>
 
+    <properties>
+        <!--
+          Every class here is generated from src/main/proto, so a coverage ratio is
+          meaningless. NotificationContractTest still guards the contract itself.
+        -->
+        <jacoco.skip>true</jacoco.skip>
+    </properties>
+
     <dependencies>
         <!--
           Compile-scoped so the generated stubs (protobuf messages + gRPC service base

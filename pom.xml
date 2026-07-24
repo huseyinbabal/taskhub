@@ -28,6 +28,69 @@
     <properties>
         <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <!-- Not managed by spring-boot-starter-parent; pinned here for every module. -->
+        <jacoco.version>0.8.15</jacoco.version>
+        <!-- Coverage gate from plan.md §Checkpoints (#5). Per-module override allowed. -->
+        <jacoco.line.minimum>0.80</jacoco.line.minimum>
     </properties>
+
+    <build>
+        <plugins>
+            <!--
+              Coverage gate: `./mvnw verify` fails the module when line coverage
+              drops below ${jacoco.line.minimum}. The HTML report is written at
+              `test` (target/site/jacoco) so it exists even when the gate fails.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <configuration>
+                    <excludes>
+                        <!-- protobuf/gRPC stubs — generated, not hand-written code -->
+                        <exclude>io/github/huseyinbabal/taskhub/notification/grpc/**</exclude>
+                        <!-- Boot entry points: a main() the tests never call -->
+                        <exclude>**/*Application.class</exclude>
+                    </excludes>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>jacoco-prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.line.minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 
 </project>
