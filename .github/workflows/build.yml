@@ -1,0 +1,66 @@
+# Build & publish — pushes runnable images to GHCR (SPEC §Session 6).
+# Correctness is CI's job (ci.yml); this workflow only packages what already
+# landed on main, so require the CI check in branch protection.
+name: Build & publish
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+# Publishing is not cancelled mid-flight — a half-pushed tag helps nobody.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Publish ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [taskhub-api, notification-service]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # Repository-scoped token; no PAT needed for a package under this repo.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # main  -> sha-<short> + latest
+      # v1.2.3 -> sha-<short> + 1.2.3 + 1.2
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ matrix.module }}
+          tags: |
+            type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.module }}/Dockerfile
+          push: true
+          # amd64 only: an arm64 leg would run the whole Maven build under QEMU.
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.module }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.module }}
