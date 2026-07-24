@@ -5,6 +5,10 @@ spring:
     password: taskhub
   jpa:
     show-sql: true
+    properties:
+      # Expose Hibernate cache hit/miss/put counts (surfaced as metrics) so the L2 cache
+      # can be observed locally. Off in prod by default — small per-operation overhead.
+      hibernate.generate_statistics: true
 
 # Dev-only, non-production JWT secret (HS256 needs ≥ 32 bytes) and local front-end origins.
 taskhub:

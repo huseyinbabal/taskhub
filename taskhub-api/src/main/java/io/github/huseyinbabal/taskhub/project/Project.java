@@ -3,6 +3,7 @@ package io.github.huseyinbabal.taskhub.project;
 import java.time.Instant;
 
 import io.github.huseyinbabal.taskhub.user.User;
+import jakarta.persistence.Cacheable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -14,12 +15,21 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
+
 /**
  * A container of tasks owned by a single {@link User} (SPEC §2). Ownership drives
  * RBAC: a {@code USER} may only read/modify projects they own.
+ *
+ * <p>Second-level cached (spec/hibernate-l2-cache-hazelcast.md): task authorization loads
+ * the parent project by id on every task operation. {@code READ_WRITE} so a project
+ * mutation invalidates the cached entry.
  */
 @Entity
 @Table(name = "projects")
+@Cacheable
+@Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 public class Project {
 
     @Id

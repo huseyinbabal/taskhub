@@ -8,6 +8,7 @@ import java.util.Set;
 import io.github.huseyinbabal.taskhub.project.Project;
 import io.github.huseyinbabal.taskhub.tag.Tag;
 import io.github.huseyinbabal.taskhub.user.User;
+import jakarta.persistence.Cacheable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -23,12 +24,21 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
+import org.hibernate.annotations.Cache;
+import org.hibernate.annotations.CacheConcurrencyStrategy;
+
 /**
  * A unit of work belonging to a {@link Project}, optionally assigned to a
  * {@link User} and labelled with {@link Tag}s (SPEC §2).
+ *
+ * <p>Second-level cached (spec/hibernate-l2-cache-hazelcast.md). {@code READ_WRITE}
+ * because tasks are the most frequently mutated entity — every create/update/complete/
+ * assign must invalidate the cached entry so a subsequent read is never stale.
  */
 @Entity
 @Table(name = "tasks")
+@Cacheable
+@Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
 public class Task {
 
     @Id
@@ -65,6 +75,9 @@ public class Task {
             name = "task_tag",
             joinColumns = @JoinColumn(name = "task_id"),
             inverseJoinColumns = @JoinColumn(name = "tag_id"))
+    // Cache the tag-id set so a task cache hit does not re-query the join table; the
+    // referenced Tag entities are themselves cached.
+    @Cache(usage = CacheConcurrencyStrategy.READ_WRITE)
     private Set<Tag> tags = new HashSet<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
