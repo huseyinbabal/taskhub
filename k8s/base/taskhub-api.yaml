@@ -1,0 +1,100 @@
+# taskhub-api — the REST edge. Runs the prod Spring profile; every value it
+# needs comes from taskhub-config (non-secret) or taskhub-secrets.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskhub-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: taskhub-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: taskhub-api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: taskhub-api
+          image: ghcr.io/huseyinbabal/taskhub/taskhub-api
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: taskhub-config
+            - secretRef:
+                name: taskhub-secrets
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            # JDBC_DATABASE_URL comes from taskhub-config: $(VAR) expansion only
+            # sees vars declared in this env list, never envFrom entries.
+            #
+            # The same Secret is handed to CloudNativePG as the owner credentials
+            # (postgres.yaml), so there is exactly one source of truth. CNPG
+            # requires type kubernetes.io/basic-auth, hence username/password.
+            - name: JDBC_DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: taskhub-db-credentials
+                  key: username
+            - name: JDBC_DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskhub-db-credentials
+                  key: password
+          # Startup probe absorbs Flyway + context refresh, so liveness can stay
+          # tight afterwards without ever killing a slow-but-healthy start.
+          startupProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            # readOnlyRootFilesystem is on, and the JVM still needs java.io.tmpdir.
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: taskhub-api
+spec:
+  selector:
+    app.kubernetes.io/name: taskhub-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http

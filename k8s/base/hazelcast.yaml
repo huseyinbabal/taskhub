@@ -1,0 +1,50 @@
+# Hazelcast backs the Hibernate second-level cache
+# (spec/hibernate-l2-cache-hazelcast.md). Installed from the official OSS chart
+# via Flux's helm-controller.
+#
+# Note: the Hazelcast Platform Operator was the first choice, but its `Hazelcast`
+# CR requires `licenseKeySecretName` and defaults to the Enterprise image — the
+# OSS chart is the licence-free equivalent, and just as declarative.
+#
+# taskhub-api connects as a native client with fallback=true, so an unavailable
+# cluster degrades to no-cache rather than failing.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: hazelcast
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: hazelcast
+      version: "5.10.x"
+      sourceRef:
+        kind: HelmRepository
+        name: hazelcast
+        namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # The chart's fullnameOverride keeps the service at `hazelcast:5701`, which
+    # is what TASKHUB_HAZELCAST_ADDRESS points at.
+    fullnameOverride: hazelcast
+    cluster:
+      memberCount: 1
+    hazelcast:
+      yaml:
+        hazelcast:
+          cluster-name: taskhub
+    # Management Center is a dev convenience (docker-compose keeps one); in the
+    # cluster it is a second StatefulSet earning nothing, so it stays off.
+    mancenter:
+      enabled: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 768Mi

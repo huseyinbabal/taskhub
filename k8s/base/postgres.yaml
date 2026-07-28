@@ -1,0 +1,29 @@
+# Postgres as a CloudNativePG `Cluster` — the operator owns the StatefulSet,
+# PVCs, failover and the connection services. We only declare intent.
+#
+# The operator creates three services; taskhub-api talks to the primary:
+#   postgres-rw  -> primary (read/write)
+#   postgres-ro  -> replicas (read-only)
+#   postgres-r   -> any instance
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+spec:
+  instances: 1
+  storage:
+    size: 1Gi
+  bootstrap:
+    initdb:
+      database: taskhub
+      owner: taskhub
+      # Owner credentials come from our own Secret rather than a generated one,
+      # so taskhub-api can read the very same keys.
+      secret:
+        name: taskhub-db-credentials
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi

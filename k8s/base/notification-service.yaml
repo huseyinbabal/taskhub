@@ -1,0 +1,81 @@
+# notification-service — gRPC only, no HTTP surface. Kubernetes probes it with
+# a native gRPC probe against the standard grpc.health.v1.Health service that
+# spring-grpc registers, so no probe binary is needed in the image.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: notification-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: notification-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: notification-service
+          image: ghcr.io/huseyinbabal/taskhub/notification-service
+          ports:
+            - name: grpc
+              containerPort: 9090
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            # Must match the secret taskhub-api signs its JWTs with — the gRPC
+            # auth interceptor verifies the token propagated as metadata.
+            - name: TASKHUB_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: taskhub-secrets
+                  key: TASKHUB_JWT_SECRET
+          startupProbe:
+            grpc:
+              port: 9090
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            grpc:
+              port: 9090
+            periodSeconds: 10
+          livenessProbe:
+            grpc:
+              port: 9090
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+spec:
+  selector:
+    app.kubernetes.io/name: notification-service
+  ports:
+    - name: grpc
+      port: 9090
+      targetPort: grpc
