@@ -9,8 +9,8 @@ PR merges. See [`plan.md`](plan.md) and [`SPEC.md`](../SPEC.md).
 - [x] **#4 — Session 4: Database** (Flyway, relations, N+1 fixes) — done, schema landed with Session 2 in commit `a9ceb0c` (`ddl-auto: validate`)
 - [x] **#5 — Session 5: Testing** (unit/slice/Testcontainers/E2E + coverage gate) — done, tests across all three modules; JaCoCo line gate ≥ 80% enforced in `./mvnw verify`
 - [x] **Hibernate L2 cache with Hazelcast** (client/server, native region factory, query cache) — done, PR #12 · _not a numbered session; see [`../spec/hibernate-l2-cache-hazelcast.md`](../spec/hibernate-l2-cache-hazelcast.md)_
-- [ ] **#6 — Session 6: Docker & CI/CD** (multi-stage image, GH Actions) · _needs #5_
-- [ ] **#7 — Session 7: K8s & GitOps** (kind, Flux, overlays, rollback) · _needs #6_
+- [x] **#6 — Session 6: Docker & CI/CD** (multi-stage image, GH Actions) — done, PR #13; multi-arch images added in PR #14 · _Sonar gate wired but skipped until a `SONAR_TOKEN` secret exists — see [`../docs/ci-cd.md`](../docs/ci-cd.md)_
+- [x] **#7 — Session 7: K8s & GitOps** (kind, Flux, overlays, rollback) — done, PR #15; Flux Operator + `FluxInstance`, Postgres via CloudNativePG · _`ServiceMonitor` deferred to #8 (needs the Prometheus Operator CRDs); see [`../docs/kubernetes-gitops.md`](../docs/kubernetes-gitops.md)_
 - [ ] **#8 — Session 8: Observability** (logs/metrics/traces/alerts, /ship) · _needs #7_
 
 ### Checkpoints
