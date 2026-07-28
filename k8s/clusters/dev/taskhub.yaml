@@ -29,7 +29,10 @@ metadata:
 spec:
   interval: 5m
   retryInterval: 1m
-  timeout: 10m
+  # Deliberately short. `wait: true` means a failed rollout holds the
+  # reconciler for the whole timeout, and a revert pushed during that window
+  # only lands once it expires — measured at ~3m45s with a 10m timeout.
+  timeout: 5m
   dependsOn:
     - name: infrastructure
   sourceRef:
