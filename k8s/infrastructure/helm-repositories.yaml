@@ -1,0 +1,19 @@
+# Chart sources for everything TaskHub does not build itself. They live in
+# flux-system and are referenced cross-namespace by the HelmReleases.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: cloudnative-pg
+  namespace: flux-system
+spec:
+  url: https://cloudnative-pg.github.io/charts
+  interval: 1h
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: hazelcast
+  namespace: flux-system
+spec:
+  url: https://hazelcast-charts.s3.amazonaws.com/
+  interval: 1h

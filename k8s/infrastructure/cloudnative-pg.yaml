@@ -1,0 +1,40 @@
+# CloudNativePG — the operator that owns Postgres. The per-environment database
+# is a `Cluster` custom resource in the app overlay, not a Deployment we wrote.
+# The operator itself is cluster-scoped and installed once, here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cnpg-system
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cloudnative-pg
+  namespace: cnpg-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: cloudnative-pg
+      version: "0.29.x"
+      sourceRef:
+        kind: HelmRepository
+        name: cloudnative-pg
+        namespace: flux-system
+  install:
+    # The Cluster CRs in the app Kustomization are useless until the CRDs land,
+    # so let Helm wait for the operator to be ready before reporting success.
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  values:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi

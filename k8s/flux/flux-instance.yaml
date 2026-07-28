@@ -1,0 +1,41 @@
+# Flux itself, declared as data. The Flux Operator reconciles this into a
+# running Flux distribution — no `flux bootstrap`, no committed controller
+# manifests, and upgrades are a one-line version bump here.
+#
+# Applied once at cluster setup (see docs/kubernetes-gitops.md); from then on
+# everything else arrives through the sync below.
+apiVersion: fluxcd.controlplane.io/v1
+kind: FluxInstance
+metadata:
+  name: flux
+  namespace: flux-system
+  annotations:
+    fluxcd.controlplane.io/reconcileEvery: "1h"
+    fluxcd.controlplane.io/reconcileTimeout: "5m"
+spec:
+  distribution:
+    version: "2.x"
+    registry: ghcr.io/fluxcd
+  components:
+    - source-controller
+    - kustomize-controller
+    - helm-controller
+    - notification-controller
+  cluster:
+    type: kubernetes
+    # Single-tenant: the app Kustomizations reference HelmRepositories in
+    # flux-system across namespaces, which multitenant mode would forbid.
+    multitenant: false
+    networkPolicy: true
+    domain: cluster.local
+  sync:
+    kind: GitRepository
+    url: https://github.com/huseyinbabal/taskhub.git
+    ref: refs/heads/main
+    path: k8s/clusters/dev
+    interval: 1m
+    # Public repo, so this is only about rate limits and being ready for a
+    # private one. Created out of band — never committed:
+    #   kubectl create secret generic flux-system -n flux-system \
+    #     --from-literal=username=git --from-literal=password="$(gh auth token)"
+    pullSecret: flux-system

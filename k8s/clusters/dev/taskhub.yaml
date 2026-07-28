@@ -1,0 +1,54 @@
+# What the dev cluster runs. The FluxInstance syncs this directory; these two
+# Kustomizations are what actually apply the manifests.
+#
+# infrastructure -> operators and chart sources (CRDs land here)
+# apps           -> the dev overlay, only once infrastructure is Ready
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure
+  namespace: flux-system
+spec:
+  interval: 10m
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./k8s/infrastructure
+  prune: true
+  # Blocks `apps` until the operator is genuinely up, not merely applied.
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  interval: 5m
+  retryInterval: 1m
+  # Deliberately short. `wait: true` means a failed rollout holds the
+  # reconciler for the whole timeout, and a revert pushed during that window
+  # only lands once it expires — measured at ~3m45s with a 10m timeout.
+  timeout: 5m
+  dependsOn:
+    - name: infrastructure
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./k8s/overlays/dev
+  # prune makes a Git revert a real rollback: resources dropped from Git are
+  # deleted from the cluster.
+  prune: true
+  wait: true
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: taskhub-api
+      namespace: taskhub-dev
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: notification-service
+      namespace: taskhub-dev

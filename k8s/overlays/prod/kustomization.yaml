@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: taskhub-prod
+
+resources:
+  - namespace.yaml
+  - ../../base
+  - ingress.yaml
+  - hpa.yaml
+
+# Two replicas behind an HPA, larger requests, and a Postgres pair so the
+# operator has something to fail over to.
+patches:
+  - path: replicas-and-resources.yaml
+    target:
+      kind: Deployment
+  - path: postgres-prod.yaml
+
+configMapGenerator:
+  - name: taskhub-config
+    literals:
+      - JDBC_DATABASE_URL=jdbc:postgresql://postgres-rw:5432/taskhub
+      - TASKHUB_HAZELCAST_ADDRESS=hazelcast:5701
+      - TASKHUB_HAZELCAST_CLUSTER=taskhub
+      - TASKHUB_NOTIFICATIONS_TARGET=static://notification-service:9090
+      - TASKHUB_CORS_ALLOWED_ORIGINS=https://taskhub.example.com
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+# NOTE: no secretGenerator here on purpose. `taskhub-secrets` and
+# `taskhub-db-credentials` must exist in the taskhub-prod namespace before this
+# overlay reconciles — created out of band (sealed-secrets, SOPS, External
+# Secrets, or `kubectl create secret`). SPEC boundary: secrets are never
+# committed. See docs/kubernetes-gitops.md.
