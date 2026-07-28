@@ -1,0 +1,11 @@
+# Applied to every Deployment in the base: one replica is enough on kind, and
+# the memory limits are trimmed so both services fit on a single node.
+- op: replace
+  path: /spec/replicas
+  value: 1
+- op: replace
+  path: /spec/template/spec/containers/0/resources/requests/cpu
+  value: 100m
+- op: replace
+  path: /spec/template/spec/containers/0/resources/requests/memory
+  value: 384Mi

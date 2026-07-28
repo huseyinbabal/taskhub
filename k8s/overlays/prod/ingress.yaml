@@ -1,0 +1,21 @@
+# Only prod is exposed outside the cluster; dev is reached with a port-forward.
+# notification-service stays internal — gRPC clients are in-cluster.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: taskhub-api
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: taskhub.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: taskhub-api
+                port:
+                  name: http
