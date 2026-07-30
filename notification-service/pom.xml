@@ -50,6 +50,22 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Distributed tracing: Micrometer -> OTel -> OTLP (SPEC §Session 8). The
+             starter, not the bare bridge: Boot 4 moved tracing autoconfiguration into
+             its own modules, and without them no Tracer is created at all. Boot
+             auto-instruments the gRPC client/server, so a trace spans both services.
+             The OTLP *metrics* registry is excluded — Prometheus scrapes instead. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-opentelemetry</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.micrometer</groupId>
+                    <artifactId>micrometer-registry-otlp</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
         <!-- Verifies the JWT that taskhub-api propagates as gRPC metadata (SPEC §Session 3). -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

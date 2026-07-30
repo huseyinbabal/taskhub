@@ -13,4 +13,23 @@ taskhub:
   cors:
     allowed-origins: ${TASKHUB_CORS_ALLOWED_ORIGINS}
 
+# Observability (SPEC §Session 8). Only outside dev: locally a human reads the
+# console, in the cluster Alloy ships these lines to Loki and needs them parsable.
+logging:
+  structured:
+    format:
+      console: ecs
+  # Both land in the MDC and therefore in every JSON line, which is what makes a
+  # log searchable by the same id the trace is filed under.
+  include-application-name: true
+
+management:
+  tracing:
+    sampling:
+      # Everything. Fine for a demo cluster; a busy service would sample down.
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${TASKHUB_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
 # No secrets in source — everything above is injected via env vars / K8s secrets.

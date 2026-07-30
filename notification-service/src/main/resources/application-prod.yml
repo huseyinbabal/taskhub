@@ -2,3 +2,19 @@
 taskhub:
   grpc:
     jwt-secret: ${TASKHUB_JWT_SECRET}
+
+# Observability (SPEC §Session 8) — mirrors taskhub-api so one trace, and one
+# correlation id, reads the same on both sides of the gRPC call.
+logging:
+  structured:
+    format:
+      console: ecs
+  include-application-name: true
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${TASKHUB_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
