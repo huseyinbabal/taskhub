@@ -42,6 +42,12 @@ spec:
     # cluster it is a second StatefulSet earning nothing, so it stays off.
     mancenter:
       enabled: false
+    # Exposes the member's Prometheus endpoint and registers it with the
+    # Prometheus operator — this is what the Hazelcast dashboard reads.
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
     resources:
       requests:
         cpu: 100m
