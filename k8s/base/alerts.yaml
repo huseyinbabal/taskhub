@@ -14,9 +14,9 @@ spec:
           # 5xx share of all responses. `> 0.05` on a low-traffic demo cluster
           # means roughly one failing request in twenty.
           expr: |
-            sum(rate(http_server_requests_seconds_count{job="taskhub-api",status=~"5.."}[5m]))
+            (sum(rate(http_server_requests_seconds_count{job="taskhub-api",status=~"5.."}[5m])) or vector(0))
               /
-            sum(rate(http_server_requests_seconds_count{job="taskhub-api"}[5m]))
+            clamp_min(sum(rate(http_server_requests_seconds_count{job="taskhub-api"}[5m])), 0.001)
               > 0.05
           for: 1m
           labels:

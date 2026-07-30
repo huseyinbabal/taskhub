@@ -24,6 +24,20 @@ logging:
   include-application-name: true
 
 management:
+  metrics:
+    distribution:
+      # Without this Micrometer ships only count/sum/max — no _bucket series — so
+      # every histogram_quantile() in the dashboards and the p99 alert returns
+      # "no data" no matter how much traffic there is.
+      percentiles-histogram:
+        http.server.requests: true
+        grpc.server: true
+        grpc.client: true
+      # Bounds the bucket count; requests outside this range still land in +Inf.
+      minimum-expected-value:
+        http.server.requests: 5ms
+      maximum-expected-value:
+        http.server.requests: 10s
   tracing:
     sampling:
       # Everything. Fine for a demo cluster; a busy service would sample down.

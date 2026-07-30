@@ -12,6 +12,11 @@ logging:
   include-application-name: true
 
 management:
+  metrics:
+    distribution:
+      # Same reason as taskhub-api: no _bucket series, no percentiles.
+      percentiles-histogram:
+        grpc.server: true
   tracing:
     sampling:
       probability: 1.0

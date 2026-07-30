@@ -36,7 +36,7 @@ data:
           "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}},
           "targets": [
             {
-              "expr": "sum(rate(http_server_requests_seconds_count{job=\"taskhub-api\",status=~\"5..\"}[5m])) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"taskhub-api\"}[5m])), 0.001)",
+              "expr": "(sum(rate(http_server_requests_seconds_count{job=\"taskhub-api\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"taskhub-api\"}[5m])), 0.001)",
               "legendFormat": "5xx ratio"
             }
           ]
