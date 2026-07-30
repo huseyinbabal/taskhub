@@ -34,6 +34,22 @@
             <version>${project.version}</version>
         </dependency>
 
+        <!-- This service speaks gRPC only, but Prometheus scrapes over HTTP. webmvc
+             exists purely to serve actuator on its own port (SPEC §Session 8). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Verifies the JWT that taskhub-api propagates as gRPC metadata (SPEC §Session 3). -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

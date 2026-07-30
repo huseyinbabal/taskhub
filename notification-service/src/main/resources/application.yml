@@ -7,6 +7,21 @@ spring:
     server:
       port: 9090
 
+# gRPC serves the traffic on 9090; this HTTP port exists only so Prometheus can
+# scrape and Kubernetes can ask for health (SPEC §Session 8).
+server:
+  port: 8081
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 taskhub:
   grpc:
     # Must match the secret taskhub-api signs its JWTs with — the auth interceptor
