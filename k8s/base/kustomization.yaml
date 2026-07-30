@@ -25,6 +25,6 @@ labels:
 # image update reaches the cluster — and reverting that commit is the rollback.
 images:
   - name: ghcr.io/huseyinbabal/taskhub/taskhub-api
-    newTag: sha-77650f9
+    newTag: sha-2723173
   - name: ghcr.io/huseyinbabal/taskhub/notification-service
-    newTag: sha-77650f9
+    newTag: sha-2723173
