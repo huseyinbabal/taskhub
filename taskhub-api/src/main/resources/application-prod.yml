@@ -28,8 +28,12 @@ management:
     sampling:
       # Everything. Fine for a demo cluster; a busy service would sample down.
       probability: 1.0
-  otlp:
+  # Boot 4 renamed this from management.otlp.tracing.endpoint; under the old key
+  # the exporter is simply never configured and no span leaves the process.
+  opentelemetry:
     tracing:
-      endpoint: ${TASKHUB_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+      export:
+        otlp:
+          endpoint: ${TASKHUB_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
 
 # No secrets in source — everything above is injected via env vars / K8s secrets.
