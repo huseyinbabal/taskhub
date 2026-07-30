@@ -1,0 +1,31 @@
+# Tells Prometheus where to scrape (SPEC §Session 8). Deferred from Session 7
+# because the CRD only arrives with kube-prometheus-stack, which the
+# `infrastructure` Kustomization now installs ahead of `apps`.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: taskhub-api
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: taskhub
+      app.kubernetes.io/name: taskhub-api
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: notification-service
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: taskhub
+      app.kubernetes.io/name: notification-service
+  endpoints:
+    # The gRPC service exposes actuator on its own HTTP port.
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s

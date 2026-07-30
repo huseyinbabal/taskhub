@@ -91,6 +91,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: taskhub-api
+  labels:
+    # The ServiceMonitor selects on this — kustomize only adds part-of.
+    app.kubernetes.io/name: taskhub-api
 spec:
   selector:
     app.kubernetes.io/name: taskhub-api

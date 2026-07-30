@@ -24,6 +24,7 @@ configMapGenerator:
       - TASKHUB_HAZELCAST_ADDRESS=hazelcast:5701
       - TASKHUB_HAZELCAST_CLUSTER=taskhub
       - TASKHUB_NOTIFICATIONS_TARGET=static://notification-service:9090
+      - TASKHUB_OTLP_ENDPOINT=http://tempo.monitoring.svc.cluster.local:4318/v1/traces
       - TASKHUB_CORS_ALLOWED_ORIGINS=https://taskhub.example.com
 
 generatorOptions:
