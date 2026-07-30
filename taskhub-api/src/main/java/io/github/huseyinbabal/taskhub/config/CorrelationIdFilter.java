@@ -25,7 +25,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * back so a client can quote it when reporting a problem.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+// Just inside Boot's observation filter (HIGHEST_PRECEDENCE + 1) so the trace
+// context is still open when the access line below is written — at strict
+// HIGHEST_PRECEDENCE this filter wraps it and every line came out untraced.
+// Still far ahead of Spring Security (-100), so rejected requests keep their id.
+@Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class CorrelationIdFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(CorrelationIdFilter.class);
