@@ -2,3 +2,28 @@
 taskhub:
   grpc:
     jwt-secret: ${TASKHUB_JWT_SECRET}
+
+# Observability (SPEC §Session 8) — mirrors taskhub-api so one trace, and one
+# correlation id, reads the same on both sides of the gRPC call.
+logging:
+  structured:
+    format:
+      console: ecs
+  include-application-name: true
+
+management:
+  metrics:
+    distribution:
+      # Same reason as taskhub-api: no _bucket series, no percentiles.
+      percentiles-histogram:
+        grpc.server: true
+  tracing:
+    sampling:
+      probability: 1.0
+  # Boot 4 renamed this from management.otlp.tracing.endpoint; under the old key
+  # the exporter is simply never configured and no span leaves the process.
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${TASKHUB_OTLP_ENDPOINT:http://localhost:4318/v1/traces}

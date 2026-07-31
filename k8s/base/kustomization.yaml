@@ -9,6 +9,11 @@ resources:
   - hazelcast.yaml
   - taskhub-api.yaml
   - notification-service.yaml
+  # Observability (SPEC §Session 8). The CRDs behind the first two come from
+  # kube-prometheus-stack in k8s/infrastructure, which `apps` dependsOn.
+  - servicemonitors.yaml
+  - alerts.yaml
+  - dashboard.yaml
 
 labels:
   - pairs:
@@ -20,6 +25,6 @@ labels:
 # image update reaches the cluster — and reverting that commit is the rollback.
 images:
   - name: ghcr.io/huseyinbabal/taskhub/taskhub-api
-    newTag: sha-e338f27
+    newTag: sha-eacfd29
   - name: ghcr.io/huseyinbabal/taskhub/notification-service
-    newTag: sha-e338f27
+    newTag: sha-eacfd29

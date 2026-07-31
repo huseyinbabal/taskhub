@@ -7,3 +7,25 @@ kind: Kustomization
 resources:
   - helm-repositories.yaml
   - cloudnative-pg.yaml
+  - monitoring.yaml
+
+# Community dashboards, vendored from grafana.com so the cluster never fetches
+# at reconcile time and an upgrade is a reviewable diff. The __inputs blocks
+# were resolved to the provisioned datasource uids on the way in.
+#   CloudNativePG            grafana.com/dashboards/20417 (rev 4)
+#   Spring Boot Observability grafana.com/dashboards/17175 (rev 2)
+#   Hazelcast Default        grafana.com/dashboards/13183 (rev 1)
+# They live here rather than in an overlay: one copy per cluster, because a
+# Grafana dashboard uid must be unique and both overlays would claim the same.
+configMapGenerator:
+  - name: grafana-dashboards-community
+    namespace: monitoring
+    files:
+      - dashboards/cloudnative-pg.json
+      - dashboards/spring-boot-observability.json
+      - dashboards/hazelcast.json
+    options:
+      labels:
+        # The Grafana sidecar imports any ConfigMap carrying this label.
+        grafana_dashboard: "1"
+      disableNameSuffixHash: true

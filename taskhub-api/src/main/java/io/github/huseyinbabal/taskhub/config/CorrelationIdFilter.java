@@ -8,6 +8,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -23,8 +25,14 @@ import org.springframework.web.filter.OncePerRequestFilter;
  * back so a client can quote it when reporting a problem.
  */
 @Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
+// Just inside Boot's observation filter (HIGHEST_PRECEDENCE + 1) so the trace
+// context is still open when the access line below is written — at strict
+// HIGHEST_PRECEDENCE this filter wraps it and every line came out untraced.
+// Still far ahead of Spring Security (-100), so rejected requests keep their id.
+@Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class CorrelationIdFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(CorrelationIdFilter.class);
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -36,10 +44,19 @@ public class CorrelationIdFilter extends OncePerRequestFilter {
 
         MDC.put(CorrelationId.MDC_KEY, correlationId);
         response.setHeader(CorrelationId.HEADER, correlationId);
+        long startedAt = System.nanoTime();
         try {
             filterChain.doFilter(request, response);
         }
         finally {
+            // One line per request, emitted while the trace context is still on the
+            // thread — this is what gives Loki something to join to a Tempo trace
+            // (SPEC §Session 8). Without it the API logs nothing on a healthy path.
+            log.info("{} {} -> {} in {}ms",
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    response.getStatus(),
+                    (System.nanoTime() - startedAt) / 1_000_000);
             // Request threads are pooled — the id must not bleed into the next request.
             MDC.remove(CorrelationId.MDC_KEY);
         }

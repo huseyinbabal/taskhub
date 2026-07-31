@@ -1,0 +1,103 @@
+# RED dashboard for taskhub-api plus the task business metric. Picked up by the
+# Grafana sidecar purely because of the grafana_dashboard label — no Grafana
+# config, no manual import (SPEC §Session 8).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: taskhub-dashboard
+  labels:
+    grafana_dashboard: "1"
+data:
+  taskhub.json: |
+    {
+      "title": "TaskHub — RED + business",
+      "uid": "taskhub-red",
+      "tags": ["taskhub"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "refresh": "30s",
+      "time": {"from": "now-1h", "to": "now"},
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Rate — requests/s by status",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "targets": [
+            {
+              "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=\"taskhub-api\"}[5m]))",
+              "legendFormat": "{{status}}"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Errors — 5xx share",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}},
+          "targets": [
+            {
+              "expr": "(sum(rate(http_server_requests_seconds_count{job=\"taskhub-api\",status=~\"5..\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_server_requests_seconds_count{job=\"taskhub-api\"}[5m])), 0.001)",
+              "legendFormat": "5xx ratio"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Duration — p50 / p95 / p99",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "fieldConfig": {"defaults": {"unit": "s"}},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"taskhub-api\"}[5m])))",
+              "legendFormat": "p50"
+            },
+            {
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"taskhub-api\"}[5m])))",
+              "legendFormat": "p95"
+            },
+            {
+              "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{job=\"taskhub-api\"}[5m])))",
+              "legendFormat": "p99"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Task mutations by type (business metric)",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "targets": [
+            {
+              "expr": "sum by (type) (rate(taskhub_tasks_changed_total{job=\"taskhub-api\"}[5m]))",
+              "legendFormat": "{{type}}"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "JVM heap used",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "fieldConfig": {"defaults": {"unit": "bytes"}},
+          "targets": [
+            {
+              "expr": "sum by (job) (jvm_memory_used_bytes{job=~\"taskhub-api|notification-service\",area=\"heap\"})",
+              "legendFormat": "{{job}}"
+            }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "HikariCP connections in use",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "targets": [
+            {
+              "expr": "hikaricp_connections_active{job=\"taskhub-api\"}",
+              "legendFormat": "active"
+            },
+            {
+              "expr": "hikaricp_connections_pending{job=\"taskhub-api\"}",
+              "legendFormat": "pending"
+            }
+          ]
+        }
+      ]
+    }

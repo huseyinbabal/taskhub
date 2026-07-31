@@ -20,6 +20,7 @@
         <springdoc.version>2.8.9</springdoc.version>
         <!-- Not BOM-managed; targets Hibernate 6.5 — Hibernate 7.4 compat is gated by T0. -->
         <hazelcast-hibernate.version>5.2.0</hazelcast-hibernate.version>
+        <datasource-micrometer.version>2.2.1</datasource-micrometer.version>
     </properties>
 
     <dependencies>
@@ -50,6 +51,35 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- Backs /actuator/prometheus; without a registry the endpoint 500s (SPEC §Session 8). -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Distributed tracing: Micrometer -> OTel -> OTLP (SPEC §Session 8). The
+             starter, not the bare bridge: Boot 4 moved tracing autoconfiguration into
+             its own modules, and without them no Tracer is created at all. Boot
+             auto-instruments the gRPC client/server, so a trace spans both services.
+             The OTLP *metrics* registry is excluded — Prometheus scrapes instead. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-opentelemetry</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>io.micrometer</groupId>
+                    <artifactId>micrometer-registry-otlp</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- JDBC spans, so a trace reaches the database rather than stopping at the
+             service layer (SPEC §Session 8). Not BOM-managed; version pinned here. -->
+        <dependency>
+            <groupId>net.ttddyy.observation</groupId>
+            <artifactId>datasource-micrometer-spring-boot</artifactId>
+            <version>${datasource-micrometer.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

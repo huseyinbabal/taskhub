@@ -1,0 +1,77 @@
+# Alert rules (SPEC §Session 8). Deliberately few: an alert nobody acts on is
+# worse than no alert. Each one names a symptom a user would feel.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: taskhub
+  labels:
+    role: alert-rules
+spec:
+  groups:
+    - name: taskhub.api
+      rules:
+        - alert: TaskHubApiHighErrorRate
+          # 5xx share of all responses. `> 0.05` on a low-traffic demo cluster
+          # means roughly one failing request in twenty.
+          expr: |
+            (sum(rate(http_server_requests_seconds_count{job="taskhub-api",status=~"5.."}[5m])) or vector(0))
+              /
+            clamp_min(sum(rate(http_server_requests_seconds_count{job="taskhub-api"}[5m])), 0.001)
+              > 0.05
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "taskhub-api is returning 5xx to more than 5% of requests"
+            description: "Error ratio {{ $value | humanizePercentage }} over the last 5m."
+
+        - alert: TaskHubApiSlowRequests
+          # p99 from the Micrometer histogram; only meaningful with traffic.
+          expr: |
+            histogram_quantile(
+              0.99,
+              sum by (le) (rate(http_server_requests_seconds_bucket{job="taskhub-api"}[5m]))
+            ) > 1
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "taskhub-api p99 latency is above 1s"
+            description: "p99 is {{ $value | humanizeDuration }} over the last 5m."
+
+    - name: taskhub.notifications
+      rules:
+        - alert: TaskHubNotificationsFailing
+          # Task events are best-effort, so failures never surface to the caller —
+          # which is exactly why they need an alert of their own.
+          expr: |
+            sum(rate(grpc_client_seconds_count{
+              rpc_service="taskhub.notification.v1.NotificationService",
+              grpc_status_code!="OK"
+            }[5m])) > 0
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "taskhub-api cannot deliver task events over gRPC"
+            description: "notification-service is rejecting or timing out; events are being dropped."
+
+    - name: taskhub.platform
+      rules:
+        - alert: TaskHubPodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace=~"taskhub-.*"}[10m]) > 2
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "{{ $labels.pod }} is crash-looping"
+            description: "More than two restarts in ten minutes."
+
+        - alert: TaskHubTargetDown
+          expr: up{job=~"taskhub-api|notification-service"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Prometheus cannot scrape {{ $labels.job }}"

@@ -13,4 +13,41 @@ taskhub:
   cors:
     allowed-origins: ${TASKHUB_CORS_ALLOWED_ORIGINS}
 
+# Observability (SPEC §Session 8). Only outside dev: locally a human reads the
+# console, in the cluster Alloy ships these lines to Loki and needs them parsable.
+logging:
+  structured:
+    format:
+      console: ecs
+  # Both land in the MDC and therefore in every JSON line, which is what makes a
+  # log searchable by the same id the trace is filed under.
+  include-application-name: true
+
+management:
+  metrics:
+    distribution:
+      # Without this Micrometer ships only count/sum/max — no _bucket series — so
+      # every histogram_quantile() in the dashboards and the p99 alert returns
+      # "no data" no matter how much traffic there is.
+      percentiles-histogram:
+        http.server.requests: true
+        grpc.server: true
+        grpc.client: true
+      # Bounds the bucket count; requests outside this range still land in +Inf.
+      minimum-expected-value:
+        http.server.requests: 5ms
+      maximum-expected-value:
+        http.server.requests: 10s
+  tracing:
+    sampling:
+      # Everything. Fine for a demo cluster; a busy service would sample down.
+      probability: 1.0
+  # Boot 4 renamed this from management.otlp.tracing.endpoint; under the old key
+  # the exporter is simply never configured and no span leaves the process.
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: ${TASKHUB_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
 # No secrets in source — everything above is injected via env vars / K8s secrets.

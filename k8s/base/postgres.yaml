@@ -21,6 +21,10 @@ spec:
       # so taskhub-api can read the very same keys.
       secret:
         name: taskhub-db-credentials
+  # The operator creates a PodMonitor for its own exporter (:9187), which is what
+  # feeds the community CloudNativePG dashboard (SPEC §Session 8).
+  monitoring:
+    enablePodMonitor: true
   resources:
     requests:
       cpu: 100m
